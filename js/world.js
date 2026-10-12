@@ -135,14 +135,18 @@ class World {
     // 补一点环境光，避免背光面发灰发脏（浅色卡通不需要强对比）
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.24));
 
+    const Q = CFG.quality;
     const dir = new THREE.DirectionalLight(0xfff8ff, 1.05);
     dir.position.set(9, 16, 7);
-    dir.castShadow = true;
-    dir.shadow.mapSize.set(1024, 1024);
-    const sc = dir.shadow.camera;
-    sc.left = -12; sc.right = 12; sc.top = 12; sc.bottom = -12; sc.near = 1; sc.far = 55;
-    dir.shadow.bias = -0.0012;
-    dir.shadow.normalBias = 0.03;
+    dir.castShadow = Q.shadowSize > 0;
+    if (Q.shadowSize > 0) {
+      dir.shadow.mapSize.set(Q.shadowSize, Q.shadowSize);
+      const E = Q.shadowExtent;
+      const sc = dir.shadow.camera;
+      sc.left = -E; sc.right = E; sc.top = E; sc.bottom = -E; sc.near = 1; sc.far = 55;
+      dir.shadow.bias = -0.0012;
+      dir.shadow.normalBias = 0.03;
+    }
     this.scene.add(dir);
     this.scene.add(dir.target);
     this.dirLight = dir;
@@ -199,15 +203,17 @@ class World {
         glowPlane.renderOrder = 1;
         g.add(glowPlane);
 
-        // 侧面光带
-        const sideGlow = new THREE.Mesh(
-          new THREE.PlaneGeometry(len, 1.3),
-          new THREE.MeshBasicMaterial({ map: ART.glow(color, 1.6), transparent: true, opacity: 0.42, depthWrite: false, color })
-        );
-        sideGlow.rotation.y = sx < 0 ? Math.PI / 2 : -Math.PI / 2;
-        sideGlow.position.set(sx * (w / 2 + 0.02), -0.3, 0);
-        sideGlow.renderOrder = 1;
-        g.add(sideGlow);
+        // 侧面光带（手机端省掉这层大面积透明叠加，填充率是移动端最大的瓶颈）
+        if (CFG.quality.glow) {
+          const sideGlow = new THREE.Mesh(
+            new THREE.PlaneGeometry(len, 1.3),
+            new THREE.MeshBasicMaterial({ map: ART.glow(color, 1.6), transparent: true, opacity: 0.42, depthWrite: false, color })
+          );
+          sideGlow.rotation.y = sx < 0 ? Math.PI / 2 : -Math.PI / 2;
+          sideGlow.position.set(sx * (w / 2 + 0.02), -0.3, 0);
+          sideGlow.renderOrder = 1;
+          g.add(sideGlow);
+        }
 
         // 赛道下沿的霓虹底边：让「漂浮感」更明确
         const underLine = new THREE.Mesh(GEO.unitBox, new THREE.MeshBasicMaterial({ color }));
@@ -228,7 +234,7 @@ class World {
     this.seaTiles = [];
     this.seaGeo = new THREE.PlaneGeometry(260, 260);
     this.seaMat = new THREE.MeshBasicMaterial({ map: ART.sea(), fog: true });
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < CFG.quality.sea; i++) {
       const t = new THREE.Mesh(this.seaGeo, this.seaMat);
       t.rotation.x = -Math.PI / 2;
       t.position.set(rand(-14, 14), -8.2 - i * 0.35, 0);
@@ -238,7 +244,7 @@ class World {
 
     // 天空中的云
     this.cloudSprites = [];
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0; i < CFG.quality.clouds; i++) {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({
         map: ART.cloud(), transparent: true, opacity: rand(0.6, 0.95), depthWrite: false, fog: false,
       }));
@@ -331,7 +337,7 @@ class World {
   /* 远景天际线（视差更慢，制造纵深） */
   _buildScenery() {
     this.skyline = [];
-    for (let i = 0; i < 24; i++) {
+    for (let i = 0; i < CFG.quality.skyline; i++) {
       const h = rand(10, 38), w = rand(6, 14), d = rand(6, 14);
       const color = pick([0xe9eeff, 0xeee6ff, 0xe6f2ff]);
       const b = new THREE.Mesh(

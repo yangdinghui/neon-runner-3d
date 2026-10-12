@@ -30,16 +30,25 @@ html, body {
   padding: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;         /* 别触发下拉刷新 / 橡皮筋 */
   font-family: var(--font);
   color: var(--ink);
   background: linear-gradient(160deg, #dff4ff 0%, #ffe8f6 48%, #eee9ff 100%);
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
   font-variant-numeric: tabular-nums;
 }
 
-#app { position: fixed; inset: 0; }
+#app {
+  position: fixed;
+  inset: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+input { user-select: text; -webkit-user-select: text; }
 
-#canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+#canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
 
 /* 难度越高，四周的氛围光越浓（浅色调，不压抑） */
 #app::after {
@@ -246,6 +255,8 @@ body.flash-hit #app::before {
   justify-content: center;
   padding: 28px 20px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   animation: screenIn .28s ease;
 }
 @keyframes screenIn { from { opacity: 0; } to { opacity: 1; } }
@@ -254,6 +265,7 @@ body.flash-hit #app::before {
   position: relative;
   width: 100%;
   max-width: 720px;
+  margin: auto;                      /* 内容超高时仍能完整滚动，不会被裁掉顶部 */
   padding: 30px 32px 26px;
   border-radius: var(--radius);
   background: var(--panel);
@@ -539,18 +551,230 @@ kbd {
 }
 .fade.on { opacity: 1; }
 
+/* ============================ 触屏操作层 ============================ */
+.keys-touch, .touch-only { display: none !important; }
+html.is-touch .keys-touch { display: grid !important; }
+html.is-touch .keys-desktop { display: none !important; }
+html.is-touch .desktop-only { display: none !important; }
+html.is-touch .touch-only { display: inline !important; }
+
+.touch-ui {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;          /* 只有子元素接收触摸，不挡视线 */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* --- 左手转向摇杆 --- */
+.pad-steer {
+  position: absolute;
+  left: calc(14px + env(safe-area-inset-left, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: min(40vw, 280px);
+  height: 116px;
+  border-radius: 26px;
+  pointer-events: auto;
+  touch-action: none;
+  background: rgba(255, 255, 255, 0.32);
+  border: 1.5px solid rgba(255, 255, 255, 0.78);
+  box-shadow: 0 8px 26px rgba(118, 138, 205, 0.22), inset 0 0 22px rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  transition: background .18s ease, box-shadow .18s ease;
+}
+.pad-steer.active {
+  background: rgba(255, 255, 255, 0.48);
+  box-shadow: 0 8px 30px rgba(53, 216, 255, 0.42), inset 0 0 26px rgba(53, 216, 255, 0.3);
+}
+.pad-base {
+  position: absolute;
+  left: 20px; right: 20px; top: 50%;
+  height: 6px; margin-top: -3px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(53, 216, 255, .5), rgba(155, 140, 255, .38), rgba(255, 111, 216, .5));
+}
+.pad-arrows {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 15px;
+  font-size: 17px;
+  color: rgba(70, 80, 140, 0.32);
+  pointer-events: none;
+  transition: color .12s ease;
+}
+.pad-arrows.go-left .arw.l { color: #12b8e8; text-shadow: 0 0 12px rgba(53, 216, 255, .95); }
+.pad-arrows.go-right .arw.r { color: #ff3fbe; text-shadow: 0 0 12px rgba(255, 111, 216, .95); }
+.pad-knob {
+  position: absolute; left: 50%; top: 50%;
+  width: 56px; height: 56px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #ffffff, #d9f3ff 55%, #a3e3ff);
+  border: 1.5px solid rgba(53, 216, 255, 0.9);
+  box-shadow: 0 4px 14px rgba(53, 216, 255, 0.45), 0 0 20px rgba(53, 216, 255, 0.32);
+}
+.pad-label {
+  position: absolute; top: -20px; left: 6px;
+  font-size: 11px; font-weight: 800;
+  letter-spacing: .05em;
+  color: rgba(70, 80, 140, 0.55);
+}
+
+/* --- 右手跳 / 滑 --- */
+.touch-actions {
+  position: absolute;
+  right: calc(14px + env(safe-area-inset-right, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  pointer-events: none;
+}
+.touch-btn {
+  pointer-events: auto;
+  touch-action: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.8);
+  color: #fff;
+  font-family: var(--font);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 1px;
+  border-radius: 50%;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  text-shadow: 0 1px 3px rgba(60, 40, 110, .35);
+  transition: transform .09s ease, filter .12s ease;
+}
+.touch-btn.jump {
+  width: 106px; height: 106px;
+  background: linear-gradient(150deg, #8fe9ff 0%, #35d8ff 45%, #9b8cff 100%);
+  box-shadow: 0 10px 26px rgba(53, 216, 255, .45), inset 0 -7px 16px rgba(255, 255, 255, .35);
+}
+.touch-btn.slide {
+  width: 84px; height: 84px;
+  background: linear-gradient(150deg, #ffc9ef 0%, #ff6fd8 45%, #b18cff 100%);
+  box-shadow: 0 10px 26px rgba(255, 111, 216, .45), inset 0 -7px 16px rgba(255, 255, 255, .35);
+}
+.touch-btn.pressed { transform: scale(.92); filter: brightness(1.08) saturate(1.08); }
+.tb-main { font-size: 27px; font-weight: 900; line-height: 1.05; }
+.touch-btn.slide .tb-main { font-size: 22px; }
+.tb-sub { font-size: 10px; font-weight: 700; opacity: .95; letter-spacing: .02em; white-space: nowrap; }
+
+/* 竖屏提示 */
+.rotate-hint {
+  position: absolute;
+  left: 50%;
+  top: calc(19% + env(safe-area-inset-top, 0px));
+  transform: translateX(-50%);
+  z-index: 9;
+  padding: 7px 15px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  white-space: nowrap;
+  animation: floatIn 0.4s ease;
+}
+
 /* ============================ 响应式 ============================ */
-@media (max-width: 720px) {
-  .panel { padding: 22px 18px 20px; border-radius: 22px; }
-  .hud-top { padding: 10px 10px 0; }
-  .hud-card { min-width: 66px; padding: 6px 10px 7px 12px; border-radius: 13px; }
-  .hud-value { font-size: 19px; }
-  .hud-value.small { font-size: 14px; }
-  .icon-btn { width: 38px; height: 38px; border-radius: 13px; }
-  .shield { width: 18px; height: 18px; }
-  #hud-hint { font-size: 11px; padding: 8px 14px; bottom: 16px; }
-  .result-grid { grid-template-columns: 1fr 1fr; }
-  .r-value { font-size: 18px; }
-  .lb-row { grid-template-columns: 30px 1fr auto; }
+/* 窄屏 / 矮屏（手机横竖屏都覆盖）：整体紧凑化 */
+@media (max-width: 900px), (max-height: 560px) {
+  .hud-top { padding: 8px 8px 0; gap: 6px; }
+  .hud-left, .hud-right { gap: 6px; }
+  .hud-card { min-width: 54px; padding: 5px 9px 6px 11px; border-radius: 12px; }
+  .hud-card::before { left: 5px; top: 7px; bottom: 7px; width: 2.5px; }
+  .hud-label { font-size: 8px; letter-spacing: .08em; }
+  .hud-value { font-size: 17px; }
+  .hud-value.small { font-size: 12.5px; }
+  .hud-value.small i { font-size: 9px; }
+  .shield { width: 16px; height: 16px; border-radius: 6px; }
+  .shield::after { inset: 4px; }
+  .combo { font-size: 11.5px; padding: 5px 10px; border-radius: 11px; }
+  .icon-btn { width: 36px; height: 36px; border-radius: 12px; font-size: 13px; }
+  #hud-hint {
+    font-size: 11px;
+    padding: 7px 13px;
+    max-width: calc(100vw - 24px);
+    white-space: normal;
+    text-align: center;
+    bottom: calc(146px + env(safe-area-inset-bottom, 0px));
+  }
+  #toast { font-size: 13px; padding: 8px 16px; bottom: calc(50% - 18px); }
+  #debug { display: none; }
+
+  .panel { padding: 18px 16px 16px; border-radius: 20px; }
+  .title { font-size: clamp(26px, 7.5vw, 40px); }
+  .subtitle { font-size: 9.5px; letter-spacing: .28em; }
+  .tagline { font-size: 12px; margin: 8px 0 12px; }
+  .section { margin-top: 14px; }
+  .section-head { font-size: 12.5px; margin-bottom: 8px; }
+  .key-item { font-size: 12px; padding: 7px 10px; border-radius: 12px; gap: 5px; }
+  .btn { padding: 11px 18px; font-size: 14px; border-radius: 14px; gap: 7px; }
+  .btn.big { padding: 14px 18px; font-size: 15px; }
+  .best-row { font-size: 12px; margin-top: 8px; }
+  .best-row b { font-size: 15px; }
+  .lb-row { font-size: 12.5px; padding: 7px 10px; border-radius: 12px; }
+  .lb-list.compact .lb-row { padding: 6px 9px; font-size: 12px; }
+  .result-grid { gap: 8px; margin-top: 10px; }
+  .result { padding: 9px 11px; border-radius: 13px; }
+  .r-label { font-size: 10px; }
+  .r-value { font-size: 17px; }
+  .h2 { font-size: 21px; }
+  .badge { font-size: 12.5px; padding: 6px 14px; }
+  .name-entry { padding: 11px 12px; border-radius: 15px; }
+  .name-row input { padding: 10px 12px; font-size: 15px; }
+  .foot-note { font-size: 11px; margin-top: 12px; }
+  .screen { padding: 12px 10px; }
+}
+
+/* 小手机竖屏：排行榜省掉「距离」列，避免挤成一行 */
+@media (max-width: 480px) {
+  .lb-row { grid-template-columns: 26px 1fr auto; }
   .lb-dist { display: none; }
+}
+
+/* 竖屏手机：HUD 太窄，压缩并舍掉「时速」卡片，保证一排放得下 */
+@media (orientation: portrait) and (max-width: 620px) {
+  .hud-top { padding: 8px 6px 0; gap: 4px; }
+  .hud-left, .hud-right { gap: 4px; flex-wrap: nowrap; }
+  .hud-card { min-width: 0; padding: 4px 8px 5px 10px; border-radius: 11px; }
+  .hud-card::before { left: 4px; top: 6px; bottom: 6px; width: 2px; }
+  .hud-label { font-size: 7px; letter-spacing: .04em; }
+  .hud-value { font-size: 15px; }
+  .hud-value.small { font-size: 11.5px; }
+  .hud-value.small i { display: none; }
+  .speed-card { display: none; }
+  .shield-card { padding: 4px 8px 5px 10px; }
+  .shield { width: 13px; height: 13px; border-radius: 5px; }
+  .shield::after { inset: 3px; }
+  .combo { font-size: 10.5px; padding: 4px 8px; }
+  .icon-btn { width: 32px; height: 32px; border-radius: 10px; font-size: 12px; }
+  .rotate-hint { font-size: 11px; padding: 6px 12px; }
+}
+
+/* 小手机横屏（高度很矮）：进一步压扁，保证操作区不挡赛道 */
+@media (max-height: 430px) {
+  .panel { padding: 14px 14px 12px; }
+  .title { font-size: clamp(22px, 5.6vw, 32px); }
+  .tagline { display: none; }
+  .key-item { font-size: 11px; padding: 6px 9px; }
+  .btn-row { margin-top: 12px; }
+  .lb-row { font-size: 11.5px; padding: 5px 9px; }
+  .pad-steer { height: 96px; width: min(38vw, 230px); }
+  .pad-knob { width: 48px; height: 48px; }
+  .touch-btn.jump { width: 88px; height: 88px; }
+  .touch-btn.slide { width: 72px; height: 72px; }
+  .tb-main { font-size: 23px; }
+  .touch-btn.slide .tb-main { font-size: 19px; }
 }

@@ -61,6 +61,13 @@ const CFG = {
     followLerp: 7.5,
     fovBase: 62,
     fovMax: 76,
+    fovNarrowMax: 88,    // 竖屏/窄屏时放宽的垂直视角上限（保证横向能看到整条赛道）
+    minTanHalfH: 0.62,   // 窄屏下想要的水平半角 tan 值
+  },
+
+  touch: {
+    dragGain: 0.026,     // 手指横向拖动 1px 对应的世界位移（单位）
+    maxDragPx: 96,       // 摇杆圆点最多偏移的像素
   },
 
   fx: {
@@ -71,6 +78,49 @@ const CFG = {
     fogFar: 230,
   },
 };
+
+/* =========================================================================
+ * 设备识别与画质分级
+ *   桌面 → high；手机/平板 → mobile；核心少的设备 → low
+ *   可用网址参数强制覆盖：?q=high / mobile / low，?touch=1 / 0
+ * ========================================================================= */
+const Device = (() => {
+  const params = new URLSearchParams(typeof location !== 'undefined' ? location.search : '');
+  const ua = navigator.userAgent || '';
+  const maxTouch = navigator.maxTouchPoints || 0;
+  const coarse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+  const uaMobile = /Android|iPhone|iPad|iPod|Mobile|Silk|Kindle/i.test(ua);
+  const touchCapable = maxTouch > 0 || 'ontouchstart' in window || coarse;
+  const smallScreen = Math.min(screen.width || 9999, screen.height || 9999) <= 820;
+  const mobile = uaMobile || (touchCapable && (coarse || smallScreen));
+  const cores = navigator.hardwareConcurrency || 4;
+  const lowEnd = mobile && (cores <= 4 || (navigator.deviceMemory || 4) <= 2);
+
+  const qOverride = params.get('q');
+  const quality = (qOverride === 'high' || qOverride === 'mobile' || qOverride === 'low')
+    ? qOverride
+    : (mobile ? (lowEnd ? 'low' : 'mobile') : 'high');
+
+  const touchOverride = params.get('touch');
+  const touch = touchOverride !== null ? touchOverride !== '0' : touchCapable;
+
+  return {
+    mobile, quality, touch, lowEnd, cores,
+    isPortrait: window.innerHeight > window.innerWidth,
+    dpr: window.devicePixelRatio || 1,
+  };
+})();
+
+/* 画质档位：低端机上减面数、减透明叠加（手机最大的瓶颈是填充率） */
+const QUALITY_PRESETS = {
+  high: { pixelRatio: 2, shadowSize: 1024, shadowExtent: 12, particles: 1400, glow: true, skyline: 24, clouds: 18, sea: 5, segments: 14 },
+  mobile: { pixelRatio: 1.5, shadowSize: 512, shadowExtent: 10, particles: 700, glow: false, skyline: 14, clouds: 10, sea: 4, segments: 14 },
+  low: { pixelRatio: 1.25, shadowSize: 0, shadowExtent: 9, particles: 420, glow: false, skyline: 8, clouds: 6, sea: 4, segments: 13 },
+};
+
+CFG.quality = QUALITY_PRESETS[Device.quality];
+CFG.fx.maxParticles = CFG.quality.particles;
+CFG.track.segCount = CFG.quality.segments;
 
 /* 马卡龙霓虹调色板 —— 所有颜色都往浅、往粉嫩偏 */
 const PAL = {

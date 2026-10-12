@@ -42,10 +42,10 @@ class Game {
   /* ================================================================ */
   init() {
     const r = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, powerPreference: 'high-performance' });
-    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, CFG.quality.pixelRatio));
     r.setSize(window.innerWidth, window.innerHeight, false);
     r.outputColorSpace = THREE.SRGBColorSpace;
-    r.shadowMap.enabled = true;
+    r.shadowMap.enabled = CFG.quality.shadowSize > 0;
     r.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer = r;
 
@@ -63,6 +63,13 @@ class Game {
     this.player = new Player(this.scene, this.particles, this.audio, this.fx);
     this.trail = new TrailRibbon(this.scene, CFG.fx.trailPoints, 0.46);
     this.input = new InputManager();
+    this.touch = new TouchControls();
+    this._touchShown = false;
+
+    // 触屏设备：在 <html> 上打标记，用来切换操作说明文案
+    document.documentElement.classList.toggle('is-touch', !!Device.touch);
+    document.documentElement.classList.toggle('is-mobile', !!Device.mobile);
+    this._updateRotateHint();
 
     this._buildShieldHud();
     this._bindUI();
@@ -134,9 +141,18 @@ class Game {
   _resize() {
     const w = window.innerWidth, h = window.innerHeight;
     this.renderer.setSize(w, h, false);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, CFG.quality.pixelRatio));
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this._updateRotateHint();
+  }
+
+  /* 竖屏时提示横屏（不阻断游戏） */
+  _updateRotateHint() {
+    const el = document.getElementById('rotate-hint');
+    if (!el) return;
+    const portrait = window.innerHeight > window.innerWidth;
+    el.classList.toggle('hidden', !(Device.touch && portrait));
   }
 
   _buildShieldHud() {
@@ -231,10 +247,27 @@ class Game {
     this._updateShields();
     this.hudCache = {};
     this.showScreen(null);
-    this._showHint('← → 移动　空格 跳跃（可二段跳）　↓ / Shift 滑铲', 4200);
+    this._showHint(
+      this.touch.available
+        ? '左手拖动转向　右手「跳」连点两次＝二段跳　「滑」钻横杆'
+        : '← → 移动　空格 跳跃（可二段跳）　↓ / Shift 滑铲',
+      3600);
     this.audio.unlock();
     if (this.audio.ready && !this.audio.musicPlaying) this.audio.startMusic();
     this.audio.start();
+
+    // 触屏设备第一次开始时尝试进全屏（iPhone Safari 不支持，静默忽略）
+    if (this.touch.available && !this._fullscreenTried) {
+      this._fullscreenTried = true;
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) {
+        try {
+          const pr = req.call(el);
+          if (pr && pr.catch) pr.catch(() => {});
+        } catch (e) {}
+      }
+    }
   }
 
   togglePause(on) {
@@ -313,6 +346,16 @@ class Game {
 
   _update(dt) {
     const I = this.input;
+
+    // 触屏操作面板只在游戏进行中出现
+    if (this.touch.available) {
+      const wantTouch = this.state === 'playing';
+      if (this._touchShown !== wantTouch) {
+        this._touchShown = wantTouch;
+        this.touch.setVisible(wantTouch);
+      }
+    }
+
     switch (this.state) {
       case 'menu': this._updateMenu(dt); break;
       case 'playing': this._updatePlaying(dt); break;
@@ -364,6 +407,14 @@ class Game {
   _updatePlaying(dt) {
     const I = this.input;
     const P = CFG.player;
+    const T = this.touch;
+    const usingTouch = T.visible;
+
+    // 边沿触发要先取出来（即使没用触屏，也要消费掉，避免残留）
+    const touchJump = T.consumeJump();
+    const touchSlide = T.consumeSlide();
+    T.currentX = this.player.x;
+    T.trackHalf = CFG.track.width / 2 - CFG.player.halfW;
 
     // 速度爬升 + 受击恢复
     this.speed = Math.min(CFG.speed.max, this.speed + CFG.speed.accel * dt);
@@ -377,16 +428,17 @@ class Game {
     this.difficulty = clamp(this.dist / 1500, 0, 1);
 
     const inp = {
-      left: I.isDown('left'),
-      right: I.isDown('right'),
-      jumpPressed: I.wasPressed('jump'),
-      slideDown: I.isDown('slide'),
-      slidePressed: I.wasPressed('slide'),
+      left: I.isDown('left') || (usingTouch && T.left),
+      right: I.isDown('right') || (usingTouch && T.right),
+      jumpPressed: I.wasPressed('jump') || (usingTouch && touchJump),
+      slideDown: I.isDown('slide') || (usingTouch && T.slideDown),
+      slidePressed: I.wasPressed('slide') || (usingTouch && touchSlide),
+      targetX: (usingTouch && T.steering) ? T.targetX : null,
     };
     this.player.update(dt, inp, { speed: v, trackHalf: CFG.track.width / 2 });
     this.world.update(dt, this.dist, v, this.difficulty, this.player.x);
 
-    this._collide();
+    this._collide(dt);
     this._updateCombo(dt);
     this._updateTrail(0.5 + this.difficulty * 0.35, 0.62);
     this._puffTrail(dt, 0.55 + this.difficulty * 0.55);
@@ -431,29 +483,36 @@ class Game {
       { speed: 0, trackHalf: CFG.track.width / 2 });
   }
 
-  /* ----------------------------------------------------------- 碰撞 */
-  _collide() {
+  /* ----------------------------------------------------------- 碰撞
+   * 注意：这里用「扫掠检测」——障碍一帧内会向后滚 speed*dt，
+   * 低帧率手机（20~30fps）上高速跑（47u/s）时一帧能移动 2.4 个单位，
+   * 只测当前帧位置会直接「穿过去」，所以要把本帧扫过的 z 区间也算上。
+   */
+  _collide(dt) {
     const p = this.player;
     const box = p.box();
+    const zPad = Math.abs(this.speed * this.speedMul * dt) + 0.06;
 
     // 障碍物
     for (const h of this.world.hazards) {
       if (h.hit) continue;
       const d = h.data;
       const hx = h.mesh.position.x, hz = h.mesh.position.z;
-      if (hz > box.z1 + d.halfD || hz < box.z0 - d.halfD) continue;
+      const hz0 = hz - d.halfD - zPad;   // 本帧它扫过的最前位置
+      const hz1 = hz + d.halfD;          // 它现在的位置
+      if (hz1 < box.z0 || hz0 > box.z1) continue;
       if (box.x1 < hx - d.halfW || box.x0 > hx + d.halfW) continue;
       if (box.y1 < d.yMin || box.y0 > d.yMax) continue;
       h.hit = true;
       this._onHit(hx);
     }
 
-    // 能量球
+    // 能量球（判定放宽一点，触屏玩家更容易吃到）
     const cy = p.y + (p.sliding ? 0.42 : 0.78);
     for (const o of this.world.orbs) {
       if (o.taken) continue;
       const oz = o.mesh.position.z;
-      if (Math.abs(oz) > 1.5) continue;
+      if (oz > 1.6 || oz < -1.6 - zPad) continue;
       const dx = o.mesh.position.x - p.x;
       const dy = o.mesh.position.y - cy;
       const r = o.data.r + 0.62;
@@ -475,6 +534,7 @@ class Game {
     this.player.onHit(dir);
     this.shake = 0.85;
     this.flashV = 0.55;
+    if (this.touch.available) this.touch.impact(26);
     document.body.classList.add('flash-hit');
     setTimeout(() => document.body.classList.remove('flash-hit'), 200);
 
@@ -541,6 +601,7 @@ class Game {
     this.audio.gameOver();
     this.audio.setIntensity(0);
     this.shake = 1.2;
+    if (this.touch.available) this.touch.impact(45);
   }
 
   _gameOver() {
@@ -624,6 +685,8 @@ class Game {
     const C = CFG.camera;
     const dead = this.state === 'dying' || this.state === 'over';
     const sn = clamp((this.speed * this.speedMul - CFG.speed.base) / (CFG.speed.max - CFG.speed.base), 0, 1);
+    const aspect = this.camera.aspect;
+    const portrait = aspect < 1.0;      // 竖屏手机：镜头压低拉远，配合更大的视角
 
     let wantX, wantY, wantZ, lookX, lookY, lookZ;
     if (dead) {
@@ -639,12 +702,12 @@ class Game {
       wantZ = C.back * 0.92 + Math.cos(this.cam.orbit) * 0.8;
       lookX = p.x * 0.5; lookY = 1.15; lookZ = C.lookAhead * 0.7;
     } else {
-      wantX = p.x * 0.74;
-      wantY = C.height + p.y * 0.34;
-      wantZ = C.back + sn * 0.9;
-      lookX = p.x * 0.55;
-      lookY = C.lookHeight + p.y * 0.32;
-      lookZ = C.lookAhead;
+      wantX = p.x * (portrait ? 0.62 : 0.74);
+      wantY = C.height * (portrait ? 0.86 : 1) + p.y * 0.34;
+      wantZ = C.back + (portrait ? 1.4 : 0) + sn * 0.9;
+      lookX = p.x * (portrait ? 0.45 : 0.55);
+      lookY = C.lookHeight * (portrait ? 0.9 : 1) + p.y * 0.32;
+      lookZ = C.lookAhead - (portrait ? 1.0 : 0);
     }
 
     const k = dead ? 3.4 : (this.state === 'menu' ? 2.6 : 7.5);
@@ -652,9 +715,15 @@ class Game {
     this.cam.y = damp(this.cam.y, wantY, k * 0.9, dt);
     this.cam.z = damp(this.cam.z, wantZ, k, dt);
 
-    // FOV 随速度拉伸
-    const targetFov = C.fovBase + sn * (C.fovMax - C.fovBase);
-    this.cam.fov = damp(this.cam.fov, dead ? C.fovBase - 4 : targetFov, 3.2, dt);
+    // 窄屏要放大垂直视角，否则横向只能看到赛道中间一条缝
+    let baseFov = C.fovBase;
+    if (aspect < 1.25) {
+      const need = 2 * Math.atan(C.minTanHalfH / Math.max(aspect, 0.34)) * 180 / Math.PI;
+      baseFov = Math.min(Math.max(C.fovBase, need), C.fovNarrowMax);
+    }
+    const speedBonus = sn * (C.fovMax - C.fovBase) * (aspect < 1.25 ? 0.45 : 1);
+    const targetFov = baseFov + speedBonus;
+    this.cam.fov = damp(this.cam.fov, dead ? baseFov - 4 : targetFov, 3.2, dt);
     if (Math.abs(this.camera.fov - this.cam.fov) > 0.01) {
       this.camera.fov = this.cam.fov;
       this.camera.updateProjectionMatrix();

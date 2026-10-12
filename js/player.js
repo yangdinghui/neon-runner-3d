@@ -31,11 +31,13 @@ class Player {
     this.deadSpin = new THREE.Vector3();
     this.hurtLean = 0;
 
-    this.height = CFG.player.standH;
     this.bobY = 0;
 
     this._build();
   }
+
+  /* 当前有效身高（滑铲时变矮，碰撞盒用它） */
+  get height() { return this.state === 'slide' ? CFG.player.slideH : CFG.player.standH; }
 
   /* ------------------------------------------------------------------ */
   _build() {
@@ -253,17 +255,17 @@ class Player {
 
   /* 碰撞盒（世界坐标 AABB） */
   box() {
-    const h = this.state === 'slide' ? CFG.player.slideH : CFG.player.standH;
     return {
       x0: this.x - CFG.player.halfW, x1: this.x + CFG.player.halfW,
-      y0: this.y, y1: this.y + h,
+      y0: this.y, y1: this.y + this.height,
       z0: -CFG.player.halfD, z1: CFG.player.halfD,
     };
   }
 
   /* ------------------------------------------------------------------
    * 更新：物理 + 动画
-   * inputFlags: {left,right,jumpPressed,slideDown,slidePressed}
+   * inputFlags: {left,right,jumpPressed,slideDown,slidePressed,targetX}
+   * ctx: {speed, trackHalf}
    * ------------------------------------------------------------------ */
   update(dt, inp, ctx) {
     const P = CFG.player;
@@ -275,14 +277,22 @@ class Player {
     }
 
     /* ---------- 左右 ---------- */
-    const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-    const control = this.grounded ? 1 : P.airControl;
-    if (dir !== 0) {
-      this.vx += dir * P.lateralAccel * control * dt;
-      this.vx = clamp(this.vx, -P.lateralSpeed, P.lateralSpeed);
+    if (inp.targetX !== null && inp.targetX !== undefined) {
+      /* 触屏：朝手指指定的世界坐标加速，离得越远越快、接近时自动收敛 */
+      const dx = inp.targetX - this.x;
+      const want = clamp(dx * 7.5, -P.lateralSpeed, P.lateralSpeed);
+      this.vx = damp(this.vx, want, 16 * (this.grounded ? 1 : P.airControl + 0.2), dt);
+      if (Math.abs(want) < 0.06 && Math.abs(this.vx) < 0.06) this.vx = 0;
     } else {
-      const f = P.lateralFriction * dt * (this.grounded ? 1 : 0.45);
-      this.vx = Math.abs(this.vx) <= f ? 0 : this.vx - Math.sign(this.vx) * f;
+      const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+      const control = this.grounded ? 1 : P.airControl;
+      if (dir !== 0) {
+        this.vx += dir * P.lateralAccel * control * dt;
+        this.vx = clamp(this.vx, -P.lateralSpeed, P.lateralSpeed);
+      } else {
+        const f = P.lateralFriction * dt * (this.grounded ? 1 : 0.45);
+        this.vx = Math.abs(this.vx) <= f ? 0 : this.vx - Math.sign(this.vx) * f;
+      }
     }
     this.x += this.vx * dt;
     if (this.x < -trackHalf) { this.x = -trackHalf; this.vx *= -0.15; }

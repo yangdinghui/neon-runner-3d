@@ -2,7 +2,10 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#dff4ff" />
 <title>霓虹奔跑者 · NEON RUNNER 3D</title>
 <meta name="description" content="3D 霓虹跑酷小游戏：第三人称视角、键盘控制、粒子拖尾、程序化音效与本地排行榜。" />
 <link rel="stylesheet" href="css/style.css" />
@@ -24,7 +27,7 @@
           <span class="hud-label">距离 DIST</span>
           <span class="hud-value small"><b id="hud-dist">0</b><i>m</i></span>
         </div>
-        <div class="hud-card">
+        <div class="hud-card speed-card">
           <span class="hud-label">时速 SPEED</span>
           <span class="hud-value small"><b id="hud-speed">0</b><i>km/h</i></span>
         </div>
@@ -45,6 +48,25 @@
     <div id="debug" class="hidden"></div>
   </div>
 
+  <!-- ===================== 触屏操作层（仅触屏设备出现） ===================== -->
+  <div id="touch" class="touch-ui hidden">
+    <div id="pad-steer" class="pad-steer">
+      <div class="pad-base"></div>
+      <div id="pad-arrows" class="pad-arrows"><span class="arw l">◀</span><span class="arw r">▶</span></div>
+      <div id="pad-knob" class="pad-knob"></div>
+      <div class="pad-label">按住拖动转向</div>
+    </div>
+    <div class="touch-actions">
+      <button id="btn-touch-jump" class="touch-btn jump" type="button">
+        <span class="tb-main">跳</span><span class="tb-sub">连点×2</span>
+      </button>
+      <button id="btn-touch-slide" class="touch-btn slide" type="button">
+        <span class="tb-main">滑</span><span class="tb-sub">按住</span>
+      </button>
+    </div>
+  </div>
+  <div id="rotate-hint" class="rotate-hint hidden">📱 把手机横过来玩更舒服</div>
+
   <!-- ===================== 开始界面 ===================== -->
   <div id="screen-start" class="screen">
     <div class="panel start-panel">
@@ -54,16 +76,22 @@
       </div>
       <p class="tagline">在浅色赛博世界里，一路霓虹、一路狂奔。</p>
 
-      <button id="btn-play" class="btn primary big">开始奔跑 <kbd>空格</kbd></button>
+      <button id="btn-play" class="btn primary big">开始奔跑 <kbd class="desktop-only">空格</kbd></button>
       <div class="best-row">历史最佳 <b id="start-best">0</b></div>
 
       <div class="section">
         <div class="section-head">🎮 操作说明</div>
-        <div class="keys-grid">
+        <div class="keys-grid keys-desktop">
           <div class="key-item"><kbd>←</kbd><kbd>→</kbd><span>左右横移（<kbd>A</kbd><kbd>D</kbd> 同样可用）</span></div>
           <div class="key-item"><kbd>空格</kbd><span>跳跃，空中再按一次＝二段跳</span></div>
           <div class="key-item"><kbd>↓</kbd><kbd>Shift</kbd><span>地面滑铲钻过横杆；空中按下＝快速飞坠</span></div>
           <div class="key-item"><kbd>Esc</kbd><kbd>P</kbd><span>暂停</span><kbd>R</kbd><span>重开</span><kbd>M</kbd><span>静音</span></div>
+        </div>
+        <div class="keys-grid keys-touch">
+          <div class="key-item"><kbd>摇杆</kbd><span>左手按住屏幕左下角区域 <b>左右拖动</b> 控制跑位，松手就停在原地</span></div>
+          <div class="key-item"><kbd>跳</kbd><span>右下角「跳」按钮；<b>快速连点两次</b>＝二段跳</span></div>
+          <div class="key-item"><kbd>滑</kbd><span>按住「滑」按钮＝滑铲钻过横杆；在空中按住＝快速飞坠</span></div>
+          <div class="key-item"><kbd>❚❚</kbd><span>右上角暂停 / 静音；横屏玩画面更宽</span></div>
         </div>
       </div>
 
@@ -75,7 +103,7 @@
         <ol id="lb-start" class="lb-list"></ol>
       </div>
 
-      <p class="foot-note">提示：霓虹方块要跳，红色横杆要滑铲，高墙要左右闪。收集能量球叠加连击倍率！</p>
+      <p class="foot-note">提示：霓虹方块要跳，红色横杆要滑铲，高墙要左右闪。收集能量球叠加连击倍率！<br class="desktop-only" /><span class="touch-only">手机：横屏 + 双拇指（左手转向、右手跳/滑）最好操作。</span></p>
     </div>
   </div>
 
@@ -150,6 +178,7 @@
 <script src="js/audio.js"></script>
 <script src="js/leaderboard.js"></script>
 <script src="js/input.js"></script>
+<script src="js/touch.js"></script>
 <script src="js/player.js"></script>
 <script src="js/world.js"></script>
 <script src="js/game.js"></script>
