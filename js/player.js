@@ -311,7 +311,9 @@ class Player {
     }
     if (this.state === 'slide') {
       this.slideTimer -= dt;
-      if (this.slideTimer <= 0 || !this.grounded) this.state = this.grounded ? 'run' : 'air';
+      // 手指按住「下趴」不放就一直趴着，松手才起身
+      const hold = !!inp.slideDown && this.grounded;
+      if ((this.slideTimer <= 0 && !hold) || !this.grounded) this.state = this.grounded ? 'run' : 'air';
     }
     if (this.slideCd > 0) this.slideCd -= dt;
 

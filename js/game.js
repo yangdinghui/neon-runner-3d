@@ -249,7 +249,7 @@ class Game {
     this.showScreen(null);
     this._showHint(
       this.touch.available
-        ? '左手拖动转向　右手「跳」连点两次＝二段跳　「滑」钻横杆'
+        ? '左右拨动转向　上拨跳跃（连拨两次＝二段跳）　下拨下趴'
         : '← → 移动　空格 跳跃（可二段跳）　↓ / Shift 滑铲',
       3600);
     this.audio.unlock();

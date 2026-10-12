@@ -551,120 +551,89 @@ kbd {
 }
 .fade.on { opacity: 1; }
 
-/* ============================ 触屏操作层 ============================ */
+/* ============================ 触屏手势层 ============================ */
 .keys-touch, .touch-only { display: none !important; }
 html.is-touch .keys-touch { display: grid !important; }
 html.is-touch .keys-desktop { display: none !important; }
 html.is-touch .desktop-only { display: none !important; }
 html.is-touch .touch-only { display: inline !important; }
 
+/* 整屏都是手势区；z-index 排在 HUD 之下，所以右上角按钮照样能点 */
 .touch-ui {
   position: absolute;
   inset: 0;
-  z-index: 7;
-  pointer-events: none;          /* 只有子元素接收触摸，不挡视线 */
+  z-index: 5;
+  pointer-events: auto;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  background: transparent;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* --- 左手转向摇杆 --- */
-.pad-steer {
+/* 手指跟随光环：转向变青、触发动作变粉并闪出「跳 / 趴」 */
+.touch-dot {
   position: absolute;
-  left: calc(14px + env(safe-area-inset-left, 0px));
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  width: min(40vw, 280px);
-  height: 116px;
-  border-radius: 26px;
-  pointer-events: auto;
-  touch-action: none;
-  background: rgba(255, 255, 255, 0.32);
-  border: 1.5px solid rgba(255, 255, 255, 0.78);
-  box-shadow: 0 8px 26px rgba(118, 138, 205, 0.22), inset 0 0 22px rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
-  transition: background .18s ease, box-shadow .18s ease;
-}
-.pad-steer.active {
-  background: rgba(255, 255, 255, 0.48);
-  box-shadow: 0 8px 30px rgba(53, 216, 255, 0.42), inset 0 0 26px rgba(53, 216, 255, 0.3);
-}
-.pad-base {
-  position: absolute;
-  left: 20px; right: 20px; top: 50%;
-  height: 6px; margin-top: -3px;
-  border-radius: 6px;
-  background: linear-gradient(90deg, rgba(53, 216, 255, .5), rgba(155, 140, 255, .38), rgba(255, 111, 216, .5));
-}
-.pad-arrows {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 15px;
-  font-size: 17px;
-  color: rgba(70, 80, 140, 0.32);
-  pointer-events: none;
-  transition: color .12s ease;
-}
-.pad-arrows.go-left .arw.l { color: #12b8e8; text-shadow: 0 0 12px rgba(53, 216, 255, .95); }
-.pad-arrows.go-right .arw.r { color: #ff3fbe; text-shadow: 0 0 12px rgba(255, 111, 216, .95); }
-.pad-knob {
-  position: absolute; left: 50%; top: 50%;
-  width: 56px; height: 56px;
-  transform: translate(-50%, -50%);
+  left: 0; top: 0;
+  width: 84px; height: 84px;
+  margin: -42px 0 0 -42px;
   border-radius: 50%;
-  background: radial-gradient(circle at 34% 28%, #ffffff, #d9f3ff 55%, #a3e3ff);
-  border: 1.5px solid rgba(53, 216, 255, 0.9);
-  box-shadow: 0 4px 14px rgba(53, 216, 255, 0.45), 0 0 20px rgba(53, 216, 255, 0.32);
-}
-.pad-label {
-  position: absolute; top: -20px; left: 6px;
-  font-size: 11px; font-weight: 800;
-  letter-spacing: .05em;
-  color: rgba(70, 80, 140, 0.55);
-}
-
-/* --- 右手跳 / 滑 --- */
-.touch-actions {
-  position: absolute;
-  right: calc(14px + env(safe-area-inset-right, 0px));
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  display: flex;
-  align-items: flex-end;
-  gap: 14px;
-  pointer-events: none;
-}
-.touch-btn {
-  pointer-events: auto;
-  touch-action: none;
-  border: 1.5px solid rgba(255, 255, 255, 0.8);
-  color: #fff;
-  font-family: var(--font);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.05) 72%);
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.45), inset 0 0 16px rgba(255, 255, 255, 0.3);
   display: grid;
   place-items: center;
-  align-content: center;
-  gap: 1px;
-  border-radius: 50%;
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-  text-shadow: 0 1px 3px rgba(60, 40, 110, .35);
-  transition: transform .09s ease, filter .12s ease;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease, border-color .16s ease, box-shadow .16s ease;
+  will-change: transform;
 }
-.touch-btn.jump {
-  width: 106px; height: 106px;
-  background: linear-gradient(150deg, #8fe9ff 0%, #35d8ff 45%, #9b8cff 100%);
-  box-shadow: 0 10px 26px rgba(53, 216, 255, .45), inset 0 -7px 16px rgba(255, 255, 255, .35);
+.touch-dot.on { opacity: .82; }
+.touch-dot.steer {
+  border-color: rgba(53, 216, 255, 0.95);
+  box-shadow: 0 0 22px rgba(53, 216, 255, 0.6), inset 0 0 18px rgba(53, 216, 255, 0.28);
 }
-.touch-btn.slide {
-  width: 84px; height: 84px;
-  background: linear-gradient(150deg, #ffc9ef 0%, #ff6fd8 45%, #b18cff 100%);
-  box-shadow: 0 10px 26px rgba(255, 111, 216, .45), inset 0 -7px 16px rgba(255, 255, 255, .35);
+.touch-dot.act {
+  border-color: rgba(255, 111, 216, 0.95);
+  box-shadow: 0 0 22px rgba(255, 111, 216, 0.6), inset 0 0 18px rgba(255, 111, 216, 0.28);
 }
-.touch-btn.pressed { transform: scale(.92); filter: brightness(1.08) saturate(1.08); }
-.tb-main { font-size: 27px; font-weight: 900; line-height: 1.05; }
-.touch-btn.slide .tb-main { font-size: 22px; }
-.tb-sub { font-size: 10px; font-weight: 700; opacity: .95; letter-spacing: .02em; white-space: nowrap; }
+.dot-label {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--ink);
+  text-shadow: 0 1px 4px rgba(255, 255, 255, 0.95);
+  opacity: 0;
+  transform: scale(.7);
+  transition: opacity .12s ease, transform .18s cubic-bezier(.3, 1.7, .5, 1);
+}
+.touch-dot.flash .dot-label { opacity: 1; transform: scale(1); }
+
+/* 开局提示手势图例，几秒后淡出 */
+.gesture-legend {
+  position: absolute;
+  left: 50%;
+  bottom: calc(26px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity .5s ease;
+  pointer-events: none;
+}
+.touch-ui.show .gesture-legend { opacity: 1; }
+.gesture-legend b { color: var(--cyan-deep); font-weight: 900; }
 
 /* 竖屏提示 */
 .rotate-hint {
@@ -708,10 +677,12 @@ html.is-touch .touch-only { display: inline !important; }
     max-width: calc(100vw - 24px);
     white-space: normal;
     text-align: center;
-    bottom: calc(146px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   }
   #toast { font-size: 13px; padding: 8px 16px; bottom: calc(50% - 18px); }
   #debug { display: none; }
+  .gesture-legend { font-size: 11px; padding: 7px 13px; gap: 10px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .touch-dot { width: 74px; height: 74px; margin: -37px 0 0 -37px; }
 
   .panel { padding: 18px 16px 16px; border-radius: 20px; }
   .title { font-size: clamp(26px, 7.5vw, 40px); }
@@ -763,7 +734,7 @@ html.is-touch .touch-only { display: inline !important; }
   .rotate-hint { font-size: 11px; padding: 6px 12px; }
 }
 
-/* 小手机横屏（高度很矮）：进一步压扁，保证操作区不挡赛道 */
+/* 小手机横屏（高度很矮）：进一步压扁，保证手势区不挡赛道 */
 @media (max-height: 430px) {
   .panel { padding: 14px 14px 12px; }
   .title { font-size: clamp(22px, 5.6vw, 32px); }
@@ -771,10 +742,6 @@ html.is-touch .touch-only { display: inline !important; }
   .key-item { font-size: 11px; padding: 6px 9px; }
   .btn-row { margin-top: 12px; }
   .lb-row { font-size: 11.5px; padding: 5px 9px; }
-  .pad-steer { height: 96px; width: min(38vw, 230px); }
-  .pad-knob { width: 48px; height: 48px; }
-  .touch-btn.jump { width: 88px; height: 88px; }
-  .touch-btn.slide { width: 72px; height: 72px; }
-  .tb-main { font-size: 23px; }
-  .touch-btn.slide .tb-main { font-size: 19px; }
+  .gesture-legend { font-size: 10px; padding: 6px 11px; gap: 8px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .touch-dot { width: 66px; height: 66px; margin: -33px 0 0 -33px; }
 }

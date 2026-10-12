@@ -48,21 +48,12 @@
     <div id="debug" class="hidden"></div>
   </div>
 
-  <!-- ===================== 触屏操作层（仅触屏设备出现） ===================== -->
+  <!-- ===================== 触屏手势层（仅触屏设备出现，全屏都是手势区） ===================== -->
   <div id="touch" class="touch-ui hidden">
-    <div id="pad-steer" class="pad-steer">
-      <div class="pad-base"></div>
-      <div id="pad-arrows" class="pad-arrows"><span class="arw l">◀</span><span class="arw r">▶</span></div>
-      <div id="pad-knob" class="pad-knob"></div>
-      <div class="pad-label">按住拖动转向</div>
-    </div>
-    <div class="touch-actions">
-      <button id="btn-touch-jump" class="touch-btn jump" type="button">
-        <span class="tb-main">跳</span><span class="tb-sub">连点×2</span>
-      </button>
-      <button id="btn-touch-slide" class="touch-btn slide" type="button">
-        <span class="tb-main">滑</span><span class="tb-sub">按住</span>
-      </button>
+    <div class="gesture-legend">
+      <span><b>← →</b> 拨动转向</span>
+      <span><b>↑</b> 跳（连拨两次＝二段跳）</span>
+      <span><b>↓</b> 下趴 / 飞坠</span>
     </div>
   </div>
   <div id="rotate-hint" class="rotate-hint hidden">📱 把手机横过来玩更舒服</div>
@@ -88,10 +79,10 @@
           <div class="key-item"><kbd>Esc</kbd><kbd>P</kbd><span>暂停</span><kbd>R</kbd><span>重开</span><kbd>M</kbd><span>静音</span></div>
         </div>
         <div class="keys-grid keys-touch">
-          <div class="key-item"><kbd>摇杆</kbd><span>左手按住屏幕左下角区域 <b>左右拖动</b> 控制跑位，松手就停在原地</span></div>
-          <div class="key-item"><kbd>跳</kbd><span>右下角「跳」按钮；<b>快速连点两次</b>＝二段跳</span></div>
-          <div class="key-item"><kbd>滑</kbd><span>按住「滑」按钮＝滑铲钻过横杆；在空中按住＝快速飞坠</span></div>
-          <div class="key-item"><kbd>❚❚</kbd><span>右上角暂停 / 静音；横屏玩画面更宽</span></div>
+          <div class="key-item"><kbd>← →</kbd><span>按住屏幕 <b>左右拨动</b>＝横向跑位，拨多远走多远，松手就停在原地</span></div>
+          <div class="key-item"><kbd>↑</kbd><span><b>向上拨动</b>＝跳跃；快速连拨两次＝二段跳</span></div>
+          <div class="key-item"><kbd>↓</kbd><span><b>向下拨动</b>＝下趴滑铲钻横杆，按住不放就一直趴着；在空中下拨＝快速飞坠</span></div>
+          <div class="key-item"><kbd>👆</kbd><span>全屏任意位置都能操作，双手同时用互不干扰；右上角暂停 / 静音</span></div>
         </div>
       </div>
 
@@ -103,7 +94,7 @@
         <ol id="lb-start" class="lb-list"></ol>
       </div>
 
-      <p class="foot-note">提示：霓虹方块要跳，红色横杆要滑铲，高墙要左右闪。收集能量球叠加连击倍率！<br class="desktop-only" /><span class="touch-only">手机：横屏 + 双拇指（左手转向、右手跳/滑）最好操作。</span></p>
+      <p class="foot-note">提示：霓虹方块要跳，红色横杆要滑铲，高墙要左右闪。收集能量球叠加连击倍率！<br class="desktop-only" /><span class="touch-only">手机：左右拨动转向，上拨跳跃、下拨下趴；横屏视野更宽。</span></p>
     </div>
   </div>
 
