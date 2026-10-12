@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>霓虹奔跑者 · NEON RUNNER 3D</title>
+<meta name="description" content="3D 霓虹跑酷小游戏：第三人称视角、键盘控制、粒子拖尾、程序化音效与本地排行榜。" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏃</text></svg>" />
+</head>
+<body>
+<div id="app">
+  <canvas id="canvas"></canvas>
+
+  <!-- ===================== 游戏内 HUD ===================== -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="hud-left">
+        <div class="hud-card score-card">
+          <span class="hud-label">分数 SCORE</span>
+          <span id="hud-score" class="hud-value">0</span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">距离 DIST</span>
+          <span class="hud-value small"><b id="hud-dist">0</b><i>m</i></span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">时速 SPEED</span>
+          <span class="hud-value small"><b id="hud-speed">0</b><i>km/h</i></span>
+        </div>
+      </div>
+
+      <div class="hud-right">
+        <div id="hud-combo" class="combo hidden">x2 连击</div>
+        <div class="hud-card shield-card">
+          <span class="hud-label">护盾</span>
+          <div id="hud-shields" class="shields"></div>
+        </div>
+        <button id="btn-mute" class="icon-btn" title="静音 / 恢复 (M)">🔊</button>
+        <button id="btn-pause" class="icon-btn" title="暂停 (Esc / P)">❚❚</button>
+      </div>
+    </div>
+    <div id="hud-hint" class="hidden">← → 移动　空格 跳跃　↓ 滑铲</div>
+    <div id="toast" class="hidden"></div>
+    <div id="debug" class="hidden"></div>
+  </div>
+
+  <!-- ===================== 开始界面 ===================== -->
+  <div id="screen-start" class="screen">
+    <div class="panel start-panel">
+      <div class="title-wrap">
+        <h1 class="title">霓虹奔跑者</h1>
+        <p class="subtitle">NEON RUNNER · 3D PARKOUR</p>
+      </div>
+      <p class="tagline">在浅色赛博世界里，一路霓虹、一路狂奔。</p>
+
+      <button id="btn-play" class="btn primary big">开始奔跑 <kbd>空格</kbd></button>
+      <div class="best-row">历史最佳 <b id="start-best">0</b></div>
+
+      <div class="section">
+        <div class="section-head">🎮 操作说明</div>
+        <div class="keys-grid">
+          <div class="key-item"><kbd>←</kbd><kbd>→</kbd><span>左右横移（<kbd>A</kbd><kbd>D</kbd> 同样可用）</span></div>
+          <div class="key-item"><kbd>空格</kbd><span>跳跃，空中再按一次＝二段跳</span></div>
+          <div class="key-item"><kbd>↓</kbd><kbd>Shift</kbd><span>地面滑铲钻过横杆；空中按下＝快速飞坠</span></div>
+          <div class="key-item"><kbd>Esc</kbd><kbd>P</kbd><span>暂停</span><kbd>R</kbd><span>重开</span><kbd>M</kbd><span>静音</span></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          🏆 本地排行榜 <span class="muted">TOP 10（保存在本机浏览器）</span>
+          <button id="btn-clear-lb" class="link-btn">清空</button>
+        </div>
+        <ol id="lb-start" class="lb-list"></ol>
+      </div>
+
+      <p class="foot-note">提示：霓虹方块要跳，红色横杆要滑铲，高墙要左右闪。收集能量球叠加连击倍率！</p>
+    </div>
+  </div>
+
+  <!-- ===================== 暂停 ===================== -->
+  <div id="screen-pause" class="screen hidden">
+    <div class="panel small-panel">
+      <h2 class="h2">暂停中</h2>
+      <p class="muted center">喝口水，休息一下 ☕</p>
+      <div class="btn-col">
+        <button id="btn-resume" class="btn primary">继续游戏 <kbd>Esc</kbd></button>
+        <button id="btn-restart-pause" class="btn ghost">重新开始 <kbd>R</kbd></button>
+        <button id="btn-menu-pause" class="btn ghost">返回主菜单</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 结算 ===================== -->
+  <div id="screen-over" class="screen hidden">
+    <div class="panel over-panel">
+      <h2 class="h2" id="over-title">能量耗尽！</h2>
+      <div id="record-badge" class="badge hidden">🎉 新纪录！</div>
+
+      <div class="result-grid">
+        <div class="result"><span class="r-label">分数</span><b id="over-score" class="r-value">0</b></div>
+        <div class="result"><span class="r-label">距离</span><b id="over-dist" class="r-value">0 m</b></div>
+        <div class="result"><span class="r-label">最高连击</span><b id="over-combo" class="r-value">x1</b></div>
+        <div class="result"><span class="r-label">最佳成绩</span><b id="over-best" class="r-value">0</b></div>
+      </div>
+      <div id="over-rank" class="rank hidden"></div>
+
+      <div id="name-entry" class="name-entry hidden">
+        <label for="input-name">成绩上榜！留下你的名字</label>
+        <div class="name-row">
+          <input id="input-name" type="text" maxlength="10" placeholder="匿名玩家" autocomplete="off" />
+          <button id="btn-save-score" class="btn primary">保存成绩</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">🏆 排行榜</div>
+        <ol id="lb-over" class="lb-list compact"></ol>
+      </div>
+
+      <div class="btn-row">
+        <button id="btn-retry" class="btn primary">再来一局 <kbd>R</kbd></button>
+        <button id="btn-menu" class="btn ghost">返回主菜单</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 载入 / 转场 ===================== -->
+  <div id="loading" class="screen">
+    <div class="loader">
+      <div class="loader-ring"></div>
+      <p id="loading-text">正在唤醒霓虹世界…</p>
+    </div>
+  </div>
+  <div id="fade" class="fade"></div>
+</div>
+
+<!-- 3D 引擎：优先用本地文件（离线可用），失败时回退到 CDN -->
+<script src="vendor/three.min.js"></script>
+<script>
+  if (typeof THREE === 'undefined') {
+    document.getElementById('loading-text').textContent = '本地引擎缺失，正在从网络加载…';
+    document.write('<script src="https://unpkg.com/three@0.157.0/build/three.min.js"><\/script>');
+  }
+</script>
+<script src="js/config.js"></script>
+<script src="js/art.js"></script>
+<script src="js/particles.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/leaderboard.js"></script>
+<script src="js/input.js"></script>
+<script src="js/player.js"></script>
+<script src="js/world.js"></script>
+<script src="js/game.js"></script>
+<script>
+  (function boot() {
+    function fail(msg) {
+      const t = document.getElementById('loading-text');
+      t.innerHTML = '<b>启动失败</b><br><span style="font-size:13px">' + msg + '</span>';
+    }
+    if (typeof THREE === 'undefined') { fail('Three.js 没有加载成功，请检查 vendor/three.min.js 是否存在，或连接网络后重试。'); return; }
+    try {
+      window.GAME = new Game();
+      window.GAME.init();
+    } catch (e) {
+      console.error(e);
+      fail(String(e && e.message || e));
+    }
+  })();
+</script>
+</body>
+</html>
