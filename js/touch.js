@@ -126,7 +126,9 @@ class TouchControls {
       // HUD 上的按钮不参与手势（按钮自己的 pointer-events 是 auto，正常会先命中它们）
       if (e.target && e.target.closest && e.target.closest('button, .screen, input, a')) return;
       e.preventDefault();
-      if (this._pointers.has(e.pointerId)) return;
+      // 同一 pointerId 再次按下：说明上一次的 pointerup 丢了（手指从屏幕边缘/系统手势区抬起时会发生），
+      // 先把残留状态清干净，否则这个 id 会永久卡住后续手势
+      if (this._pointers.has(e.pointerId)) this._endPointer(e.pointerId);
 
       const g = {
         id: e.pointerId,
@@ -187,25 +189,37 @@ class TouchControls {
     });
 
     const end = (e) => {
-      const g = this._pointers.get(e.pointerId);
-      if (!g) return;
+      if (!this._pointers.has(e.pointerId)) return;
       e.preventDefault();
-      if (g.holdingDown) { this._holdDown = Math.max(0, this._holdDown - 1); g.holdingDown = false; }
-      if (this._holdDown === 0) this.slideDown = false;
-      if (this._steerId === e.pointerId || g.steerOwner) {
-        this._steerId = null;
-        this.steering = false;
-        this.left = false; this.right = false;
-      }
-      this._releaseDot(e.pointerId);
-      this._pointers.delete(e.pointerId);
+      this._endPointer(e.pointerId);
       try { this.dom.releasePointerCapture(e.pointerId); } catch (err) {}
     };
     surface.addEventListener('pointerup', end);
     surface.addEventListener('pointercancel', end);
+    // 兜底：系统手势等原因导致 surface 收不到抬起事件时，也能把状态清掉
+    for (const ev of ['pointerup', 'pointercancel']) {
+      window.addEventListener(ev, (e) => {
+        if (this._pointers.has(e.pointerId)) this._endPointer(e.pointerId);
+      }, true);
+    }
 
     // 触屏上不要长按菜单 / 选中文字
     surface.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  /* 结束一个手指的手势，并把共享状态（转向 / 下趴）退回去 */
+  _endPointer(id) {
+    const g = this._pointers.get(id);
+    if (!g) return;
+    if (g.holdingDown) { this._holdDown = Math.max(0, this._holdDown - 1); g.holdingDown = false; }
+    if (this._holdDown === 0) this.slideDown = false;
+    if (this._steerId === id || g.steerOwner) {
+      this._steerId = null;
+      this.steering = false;
+      this.left = false; this.right = false;
+    }
+    this._releaseDot(id);
+    this._pointers.delete(id);
   }
 
   _flash(g, text, color) {
